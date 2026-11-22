@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Omega Duel Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a duelist's ledger — plain, exact, every rate carries its sample size.
+   IDEA: the duel log a tournament judge keeps: one row per game, sliced any way you like.
+   PICTURE: the live stats table and win-rate bars are the picture; pies on the Meta tab.
+   COLOUR and TYPE: spell-card teal leads, trap-card magenta marks losses, card-frame hues for decks; Barlow.
+   LAYOUT: teal band with loader and tabs, filter builder, headline tiles, table, chart, game list. */
+:root{color-scheme:light dark;--bg:light-dark(#fff,#111416);--ink:light-dark(#15191c,#e7ecee);--mute:light-dark(#5d676e,#9aa6ad);
+--line:light-dark(#dfe5e8,#2a3136);--soft:light-dark(#f3f6f7,#1a1f22);--teal:#0e6b62;--tealT:light-dark(#0e6b62,#4fc3b2);
+--mag:light-dark(#b4306e,#e0679f);--win:light-dark(#0e6b62,#4fc3b2);--band:light-dark(#0e6b62,#0b4c46)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Barlow,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:"Barlow Semi Condensed",Barlow,sans-serif;line-height:1.1;margin:0;text-wrap:balance}
+h1{font-size:clamp(30px,4vw,44px)}h2{font-size:24px;margin-bottom:10px}h3{font-size:18px}
+.band{padding:clamp(18px,3vw,36px) max(4vw,16px)}
+.top{background:var(--band);color:#fff;padding-bottom:0}
+.top p{margin:6px 0 0;color:#cfe9e5;max-width:70ch}
+.tabs{display:flex;gap:4px;margin-top:18px;flex-wrap:wrap}
+.tabs button{background:transparent;color:#d6efeb;border:0;border-radius:10px 10px 0 0;padding:10px 18px;font:600 16px Barlow,system-ui,sans-serif;min-height:44px;cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--bg);color:var(--ink)}
+button,select,input{font:inherit;font-size:16px;color:inherit}
+.btn{background:var(--teal);color:#fff;border:0;border-radius:10px;padding:10px 16px;min-height:44px;font-weight:600;cursor:pointer}
+.btn.ghost{background:var(--soft);color:var(--ink);border:1px solid var(--line)}
+.btn:focus-visible,select:focus-visible,input:focus-visible,.tabs button:focus-visible{outline:3px solid #f0b429;outline-offset:2px}
+select,input[type=text],input[type=number],input[type=date],input:not([type]){background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px}
+.wrap{max-width:1240px;margin:0 auto}
+.drop{border:2px dashed var(--line);border-radius:16px;padding:clamp(20px,4vw,44px);display:grid;gap:14px;background:var(--soft)}
+.drop.over{border-color:var(--teal);background:light-dark(#e6f3f1,#14302c)}
+.drop ol{margin:0;padding-inline-start:1.2em;color:var(--mute)}.drop code{background:var(--bg);padding:1px 5px;border-radius:4px}
+.status{color:var(--mute);font-size:15px}
+.panel{border-top:1px solid var(--line);padding-top:16px;margin-top:16px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:6px}
+.chip .x,.srow .x{background:none;border:0;font-size:20px;width:36px;height:36px;cursor:pointer;color:var(--mute)}
+.lbl{font-size:13px;color:var(--mute);font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:18px 0}
+.tile{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.tile .big{font:700 clamp(26px,3vw,34px) "Barlow Semi Condensed",Barlow,system-ui,sans-serif;line-height:1}
+.tile small{display:block;color:var(--mute);font-size:14px;margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--mute);font-weight:600;cursor:pointer;white-space:nowrap;position:sticky;top:0;background:var(--bg)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.wr{min-width:150px}.wr .b{display:block;height:6px;border-radius:3px;background:var(--line);margin-top:4px;overflow:hidden}
+.wr .b i{display:block;height:100%;width:var(--p);background:var(--c)}
+.wr b{font-variant-numeric:tabular-nums}.wr small{color:var(--mute);white-space:nowrap}
+.cell{white-space:nowrap;font-variant-numeric:tabular-nums}.cell small{color:var(--mute)}
+tr.total td{font-weight:600;background:var(--soft)}
+.dim{opacity:.4}
+.scroll{overflow-x:auto;max-height:70vh;overflow-y:auto;border:1px solid var(--line);border-radius:12px}
+.fig{position:relative;min-height:260px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+.note{font-size:14px;color:var(--mute);margin:8px 0 0}
+.W{color:var(--win);font-weight:600}.L{color:var(--mag);font-weight:600}
+.added{color:#00a040}.removed{color:#d00000}
+.detail td{background:var(--soft);font-size:14px}
+.pies{display:grid;gap:32px}
+.pie{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:24px;align-items:start}
+.pie td:first-child{min-width:160px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.splits{display:grid;gap:6px;margin:10px 0;border:1px solid var(--line);border-radius:12px;padding:8px}
+.srow{display:grid;grid-template-columns:72px minmax(0,280px) minmax(0,340px) 44px;gap:8px;align-items:center}
+.srow.h{font-size:13px;color:var(--mute);font-weight:600;padding:0 2px}
+.pkb{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px;width:100%;text-align:left;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pkb.empty{color:var(--mute)}
+.pkp{position:absolute;z-index:20;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgb(0 0 0/.18);padding:8px;width:min(380px,92vw)}
+.pkp input{width:100%}.pkp ul{list-style:none;margin:6px 0 0;padding:0;max-height:320px;overflow:auto}
+.pkp li{padding:8px 10px;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+.pkp li:hover,.pkp li.act{background:var(--soft)}.pkp li small{color:var(--mute);white-space:nowrap}
+@media(max-width:700px){.srow{grid-template-columns:minmax(0,1fr) 44px}.srow>.lbl{grid-column:1/-1}.srow.h{display:none}}
+[hidden]{display:none!important}
+@media(max-width:600px){table{font-size:13px}.pie{grid-template-columns:1fr}.pie svg{max-width:220px}}
+</style>
+</head>
+<body>
+<header class="band top"><div class="wrap">
+  <h1>Omega Duel Log</h1>
+  <p id="summary">Win rates from your YGO Omega replays, sliced any way you like. Everything runs in this browser; nothing is uploaded.</p>
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-tab="stats" aria-selected="true">Stats</button>
+    <button role="tab" data-tab="meta" aria-selected="false">Meta</button>
+    <button role="tab" data-tab="decks" aria-selected="false">Decks</button>
+    <button role="tab" data-tab="contribute" aria-selected="false">Contribute</button>
+  </nav>
+</div></header>
+
+<main class="band"><div class="wrap">
+  <section id="loader" class="drop" aria-label="Load replays">
+    <h2>Load your Omega folder</h2>
+    <div class="row">
+      <label class="btn" for="pick">Choose folder</label><input id="pick" type="file" webkitdirectory multiple hidden>
+      <label class="btn ghost" for="pickFiles">Or choose files</label><input id="pickFiles" type="file" multiple hidden>
+      <span class="status">or drag the folder onto this box</span>
+    </div>
+    <ol>
+      <li><b>Mac:</b> in Finder, open Applications, right-click <b>YGO Omega</b> → <b>Show Package Contents</b> → <code>Contents</code>, then drag the <code>Files</code> folder here. (The Choose folder dialog can't see inside apps; dragging is easiest.)</li>
+      <li><b>Windows:</b> choose the <code>Files</code> folder inside your YGO Omega install (it holds <code>Replays</code> and <code>Player.data</code>).</li>
+      <li>Only replays (<code>Replays/Client/*.bytes</code>), your decklists (<code>Player.data</code>) and their backups are read.</li>
+      <li><b>Several players:</b> drop a folder of contributed data packs (the folder from Google Drive, unzipped once). Each player's packs are combined and a Player filter appears.</li>
+    </ol>
+    <p class="status" id="loadStatus" aria-live="polite"></p>
+  </section>
+
+  <section id="tab-contribute" hidden>
+    <div class="drop" id="cDrop">
+      <h2>Contribute your games</h2>
+      <p style="margin:0;max-width:70ch">Share your YGO Omega replays and decklists with <b class="owner">this project</b>. Only replays and decklists are packed; nothing else in your Omega folder is read. Your opponents' account numbers are replaced with anonymous codes before anything leaves this page.</p>
+      <div class="row">
+        <label class="btn" for="cPick">Choose folder</label><input id="cPick" type="file" webkitdirectory multiple hidden>
+        <label class="btn ghost" for="cPickFiles">Or choose files</label><input id="cPickFiles" type="file" multiple hidden>
+        <span class="status">or drag your Files folder onto this box</span>
+      </div>
+      <ol>
+        <li><b>Mac:</b> in Finder, open Applications, right-click <b>YGO Omega</b> → <b>Show Package Contents</b> → <code>Contents</code>, then drag the <code>Files</code> folder here.</li>
+        <li><b>Windows:</b> choose the <code>Files</code> folder inside your YGO Omega install (it holds <code>Replays</code> and <code>Player.data</code>).</li>
+      </ol>
+      <p class="status" id="cStatus" aria-live="polite"></p>
+    </div>
+    <div id="cReady" class="panel" hidden>
+      <h3>Ready to send</h3>
+      <p id="cSummary" style="margin:6px 0 12px"></p>
+      <div class="row" style="margin-bottom:10px"><label class="row"><span class="lbl">Your name (optional)</span><input id="cName" maxlength="40" autocomplete="nickname"></label></div>
+      <label class="row" style="margin-bottom:12px"><input type="checkbox" id="cConsent"> <span>I agree to share these replays and decklists with <b class="owner">this project</b> for win-rate statistics.</span></label>
+      <div class="row"><button class="btn" id="cSend">Send</button><button class="btn ghost" id="cDownload">Download data pack instead</button><button class="btn ghost" id="cStats">See my own stats</button></div>
+      <p class="status" id="cResult" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section id="app" hidden>
+    <div id="deckWarn" class="drop" style="margin-bottom:16px" hidden>
+      <h3>Your decklists aren't loaded</h3>
+      <p style="margin:0">Deck names, versions and the Decks tab come from <code>Player.data</code> and the <code>Backup</code> folder, which sit in the <b>Files</b> folder one level above <code>Replays</code>. Drag the whole <b>Files</b> folder (or just <code>Player.data</code> and <code>Backup</code>) anywhere onto this page and they'll be added to what's loaded.</p>
+    </div>
+    <details id="report" style="margin:0 0 16px">
+      <summary id="reportSum" style="cursor:pointer;min-height:32px"></summary>
+      <div class="scroll" style="max-height:none;margin-top:8px"><table id="reportTable"></table></div>
+      <div id="reportErr" class="note"></div>
+    </details>
+    <div class="panel" style="border:0;margin:0;padding:0">
+      <div class="row" style="justify-content:space-between">
+        <h3>Filters</h3>
+        <div class="row"><span class="lbl">From</span><input type="date" id="dFrom"><span class="lbl">to</span><input type="date" id="dTo">
+          <button class="btn ghost" id="addFilter">+ Filter</button><button class="btn ghost" id="clearFilters">Clear</button></div>
+      </div>
+      <div class="row" id="filters" style="margin-top:8px"></div>
+    </div>
+
+    <div id="tab-stats">
+      <div class="tiles" id="tiles"></div>
+      <div class="panel">
+        <div class="row" style="justify-content:space-between">
+          <h3>Win rate by</h3>
+          <div class="row"><span class="lbl">Columns</span><select id="colDim"></select>
+            <span class="lbl">Hide rows under</span><input type="number" id="minN" min="0" value="0" style="width:80px"><span class="lbl">games</span></div>
+        </div>
+        <div id="groups" class="splits"></div>
+        <div class="scroll"><table id="statTable"></table></div>
+        <p class="note" id="tableNote"></p>
+        <div class="row" style="margin-top:10px"><button class="btn ghost" data-export="view">Excel: this table</button><button class="btn ghost" data-export="all">Excel: all data</button><span class="status" id="exportStatus"></span></div>
+      </div>
+      <div class="panel">
+        <div class="row" style="justify-content:space-between"><h3>Win rate over time</h3>
+          <div class="row"><span class="lbl">Rolling window</span><input type="number" id="roll" min="2" value="10" style="width:80px"><span class="lbl">games</span></div></div>
+        <div class="fig"><svg id="timeChart" role="img" aria-label="Rolling and cumulative win rate over time"></svg></div>
+        <p class="note">Solid line: rolling win rate over the last N games. Dashed: cumulative. Ticks along the top mark a change of deck version.</p>
+      </div>
+      <div class="panel">
+        <h3>Games</h3>
+        <div class="scroll" style="margin-top:8px"><table id="gameTable"></table></div>
+        <p class="note">Click a game to see both hands and every card the opponent showed.</p>
+      </div>
+    </div>
+
+    <div id="tab-meta" hidden>
+      <div class="panel row">
+        <span class="lbl">Window</span>
+        <select id="win"><option value="all">All time</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="thisMonth">This calendar month</option><option value="lastMonth">Last calendar month</option><option value="custom">Custom (uses From/To above)</option></select>
+        <span class="lbl">counted back from</span><select id="anchor"><option value="latest">your latest game</option><option value="today">today</option></select>
+        <span class="lbl">Group slices under</span><input type="number" id="otherPct" min="0" value="5" style="width:72px"><span class="lbl">% as Other</span>
+        <label class="row"><input type="checkbox" id="hideUnknown"> <span>Hide unknown decks</span></label>
+      </div>
+      <p class="note" id="metaNote"></p>
+      <div class="pies" style="margin-top:12px"><div id="pieOpp"></div><div id="pieMine"></div></div>
+    </div>
+
+    <div id="tab-decks" hidden>
+      <div class="panel row"><span class="lbl">Deck</span><select id="deckSel"></select><span class="lbl">Version</span><select id="verSel"></select>
+        <label class="row"><input type="checkbox" id="onlyChanges"> <span>Only changes</span></label></div>
+      <p class="note" id="deckNote"></p>
+      <div class="scroll" style="margin-top:8px"><table id="deckTable"></table></div>
+    </div>
+  </section>
+</div></main>
+
+<div id="pkPanel" class="pkp" hidden><input id="pkSearch" placeholder="Search…" autocomplete="off" aria-label="Search"><ul id="pkList" role="listbox"></ul></div>
+<script src="config.js"></script>
+<script src="parser.js"></script>
+<script>
+{
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+let DB = new Map(), DATA = null, GAMES = [], VIEW = { head: [], rows: [] };
+const CONFIG = Object.assign({ uploadUrl: "", owner: "" }, window.OMEGA_CONFIG || {});
+document.querySelectorAll(".owner").forEach(e => { if (CONFIG.owner) e.textContent = CONFIG.owner; });
+const IN_CLAUDE = !!(window.claude && window.claude.use);
+let downloads = null;
+if (IN_CLAUDE) claude.use("downloads").then(d => { downloads = d; }).catch(() => {});
+async function saveFile(name, blob) {
+  if (IN_CLAUDE) { if (!downloads) throw new Error("Downloads aren't available in this view."); return downloads.save({ filename: name, data: blob }); }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+const loadLib = (src, test) => test() ? Promise.resolve() : new Promise((res, rej) => { const el = document.createElement("script"); el.src = src; el.onload = res; el.onerror = () => rej(new Error("A library didn't load: " + src)); document.head.appendChild(el); });
+
+const nm = id => (DB.get(id) || ["#" + id])[0];
+const names = ids => [...new Set(ids.map(nm))];
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const month = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+const weekOf = d => { const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return "Week of " + ymd(x); };
+const bucket = t => t <= 2 ? "1–2 turns" : t <= 4 ? "3–4 turns" : t <= 6 ? "5–6 turns" : "7+ turns";
+const PAL = ["#0e6b62", "#d9822b", "#b4306e", "#2f6fb3", "#7b4fa8", "#8a7f2b", "#8b5a2b", "#3f8f9f", "#c45a4a", "#5d6b7a", "#3b9b4b", "#a05fbf"];
+
+const DIMS = [
+  { k: "player", l: "Player", get: g => g.player },
+  { k: "myDeck", l: "My deck", get: g => g.myDeck },
+  { k: "myVersion", l: "My deck version", get: g => g.myVersion },
+  { k: "turn", l: "Turn order", get: g => g.first == null ? "?" : g.first ? "Going 1st" : "Going 2nd" },
+  { k: "side", l: "Pre/post side", get: g => g.gameInMatch === 1 ? "Game 1 (pre-side)" : "Games 2–3 (post-side)" },
+  { k: "gameNo", l: "Game in match", get: g => "Game " + g.gameInMatch },
+  { k: "oppDeck", l: "Opponent deck", get: g => g.oppDeck },
+  { k: "hand", l: "Card in my opening hand", multi: 1, get: g => names(g.opening) },
+  { k: "drawn", l: "Card I drew (hand or later)", multi: 1, get: g => names(g.myDrawn) },
+  { k: "played", l: "Card I played", multi: 1, get: g => names(g.myPlayed) },
+  { k: "oppCard", l: "Card opponent showed", multi: 1, get: g => names(g.oppCards) },
+  { k: "oppOpen", l: "Card from opponent's opening hand", multi: 1, get: g => names(g.oppOpen) },
+  { k: "length", l: "Game length", get: g => bucket(g.turns) },
+  { k: "end", l: "End reason", get: g => g.endReason },
+  { k: "month", l: "Month", get: g => month(g.ts) },
+  { k: "week", l: "Week", get: g => weekOf(g.ts) },
+  { k: "startHand", l: "Starting hand size", get: g => g.startHand + "-card start" },
+];
+const D = Object.fromEntries(DIMS.map(d => [d.k, d]));
+const dimOpts = (sel, extra = "") => extra + DIMS.map(d => `<option value="${d.k}"${d.k === sel ? " selected" : ""}>${esc(d.l)}</option>`).join("");
+
+// ---------------------------------------------------------------- state
+let TAB = ["stats", "meta", "decks", "contribute"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "stats";
+const S = { filters: [], groups: [{ k: "myDeck", card: "" }], col: "", minN: 0, sort: { by: "n", dir: -1 }, open: null };
+
+// ---------------------------------------------------------------- loading
+const DBREADY = fetch("cards.json").then(r => r.text()).then(t => {
+  for (const line of t.split("\n")) { if (!line.trim() || line[0] === "[" && line.length < 3) continue;
+    try { const r = JSON.parse(line.replace(/,\s*$/, "")); if (Array.isArray(r) && r.length === 4) DB.set(r[0], [r[1], r[2], r[3]]); } catch (e) {} }
+}).catch(() => { $("#loadStatus").textContent = "Card database didn't load; cards will show as ID numbers."; });
+
+const SKIP = new Set(["Arts", "BGM", "SFX", "Sleeves", "Textures", "Themes", "Playmat", "Holograms", "Backgrounds", "Animations", "Bundles", "Scripts", "Databases", "Data", "Banlists", "Server"]);
+const wanted = p => /\.(bytes|zip)$/i.test(p) || /(^|\/)(Player\.data|contributor\.json)$/i.test(p) || /(^|\/)Backup\/Player_[^/]*\.data$/i.test(p);
+// "Someone/Replays/Client/x.bytes" -> group "Someone", key "Replays/Client/x.bytes"
+function splitPath(path) { const m = /^(.*?)(Replays\/.*|Backup\/[^/]*|Player\.data|contributor\.json)$/i.exec(path); return m ? { group: m[1].replace(/\/$/, ""), key: m[2] } : { group: "", key: path }; }
+async function collect(list) {
+  const items = [];
+  const zips = list.filter(x => /\.zip$/i.test(x.path)).sort((a, b) => a.path.localeCompare(b.path));   // older uploads first, newer override
+  for (const { file, path } of list.filter(x => !/\.zip$/i.test(x.path))) { const sp = splitPath(path); items.push({ path, name: file.name, mtime: file.lastModified, bytes: new Uint8Array(await file.arrayBuffer()), ...sp }); }
+  // zips: data packs, or the zip Google Drive makes when you download a folder (which can hold packs)
+  const readZip = async (bytes, depth) => {
+    for (const e of await OmegaParser.zipRead(bytes)) {
+      if (/\.zip$/i.test(e.name)) { if (depth < 2) await readZip(e.bytes, depth + 1); continue; }
+      if (!wanted(e.name)) continue;
+      items.push({ path: e.name, name: e.name.split("/").pop(), mtime: e.date.getTime(), bytes: e.bytes, ...splitPath(e.name) });
+    }
+  };
+  for (const { file } of zips) await readZip(new Uint8Array(await file.arrayBuffer()), 0);
+  return items;
+}
+function walkEntry(entry, path, out) {
+  return new Promise(res => {
+    if (entry.isFile) { if (wanted(path)) entry.file(f => { out.push({ file: f, path }); res(); }, () => res()); else res(); return; }
+    if (SKIP.has(entry.name)) return res();
+    const rd = entry.createReader(), all = [];
+    const next = () => rd.readEntries(async ents => { if (!ents.length) { for (const e of all) await walkEntry(e, path + "/" + e.name, out); res(); } else { all.push(...ents); next(); } }, () => res());
+    next();
+  });
+}
+let ALLFILES = [];
+async function ingest(list) {
+  const st = DATA ? $("#summary") : $("#loadStatus"); st.textContent = `Reading ${list.length} files…`; await DBREADY;
+  let fresh; try { fresh = await collect(list); } catch (e) { st.textContent = "Couldn't read these files: " + e.message; return; }
+  // add to anything already loaded; the same file for the same player replaces the old copy
+  const id = f => f.group + "\u0001" + f.key;
+  const byKey = new Map(ALLFILES.map(f => [id(f), f])); for (const f of fresh) byKey.set(id(f), f);
+  const files = ALLFILES = [...byKey.values()];
+  if (!files.some(f => /\.bytes$/i.test(f.name))) { st.textContent = "No replay files (.bytes) found there. Pick the Files folder that contains Replays."; return; }
+  if (!files.some(f => /Player\.data$/i.test(f.name))) st.textContent = "No Player.data found, so deck names won't be known. Parsing replays…";
+  try {
+    DATA = await OmegaParser.buildMulti(files, DB, null, (d, n) => { st.textContent = `Parsed ${d} of ${n} replays…`; });
+  } catch (e) { st.textContent = "Couldn't read these files: " + e.message; return; }
+  GAMES = DATA.games; for (const g of GAMES) { g._v = {}; for (const d of DIMS) g._v[d.k] = d.get(g); }
+  start();
+}
+$("#pick").addEventListener("change", e => ingest(fromFolder(e.target.files)));
+const fromFiles = fl => [...fl].filter(f => wanted(f.name) || /^Player_.*\.data$/i.test(f.name)).map(f => ({ file: f, path: /^Player_/i.test(f.name) ? "Backup/" + f.name : /\.bytes$/i.test(f.name) ? "Replays/Client/" + f.name : f.name }));
+const fromFolder = fl => [...fl].filter(f => wanted(f.webkitRelativePath || f.name)).map(f => ({ file: f, path: f.webkitRelativePath || f.name }));
+$("#pickFiles").addEventListener("change", e => ingest(fromFiles(e.target.files)));
+const dz = $("#loader");
+dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("over"); });
+dz.addEventListener("dragleave", () => dz.classList.remove("over"));
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", async e => {
+  e.preventDefault(); dz.classList.remove("over"); $("#cDrop").classList.remove("over");
+  (TAB === "contribute" ? $("#cStatus") : DATA ? $("#summary") : $("#loadStatus")).textContent = "Scanning folder…";
+  const out = [], ents = [...e.dataTransfer.items].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  for (const en of ents) await walkEntry(en, en.name, out);
+  if (TAB === "contribute") contribute(out); else ingest(out);
+});
+
+function start() {
+  const gs = GAMES, ms = new Set(gs.map(g => g.matchId)).size, decks = new Set(DATA.versions.map(v => v.deck)).size;
+  const span = gs.length ? `${gs[0].ts.toLocaleDateString()} – ${gs[gs.length - 1].ts.toLocaleDateString()}` : "";
+  const usable = DATA.players.filter(p => p.usable), pl = usable.length > 1 ? `${usable.length} players · ` : "";
+  const skipped = DATA.players.reduce((a, p) => a + (p.replaysFound - p.replaysRead) + p.deckFilesBad, 0);
+  $("#summary").textContent = pl + `${gs.length} games · ${ms} matches · ${decks} decks (${DATA.versions.length} versions) · ${span}` + (skipped ? ` · ${skipped} files skipped` : "");
+  renderReport();
+  if (TAB === "contribute") TAB = "stats";
+  showTab();
+  $("#deckWarn").hidden = DATA.versions.length > 0;
+  if (!DATA.versions.length) $("#summary").textContent += " · decklists not loaded";
+  $("#colDim").innerHTML = dimOpts(S.col, `<option value="">None</option>`);
+  fillDecks(); render();
+}
+
+// ---------------------------------------------------------------- data check report
+function renderReport() {
+  const ps = DATA.players, d = x => x ? x.toLocaleDateString() : "—";
+  const rows = ps.map(p => {
+    const skip = p.replaysFound - p.replaysRead, bad = !p.usable || skip || p.deckFilesBad || !p.decklist;
+    const status = !p.usable ? "Nothing usable" : skip || p.deckFilesBad ? "Some files skipped" : !p.decklist ? "No decklists" : "OK";
+    return `<tr><td>${esc(p.label || p.key || "Me")}</td><td class="n">${p.replaysRead}</td><td class="n${skip ? " L" : ""}">${skip}</td><td>${p.decklist ? (p.deckFilesBad ? `<span class="L">unreadable</span>` : "yes") : `<span class="L">missing</span>`}</td><td class="n">${p.backups}</td><td>${d(p.first)} – ${d(p.last)}</td><td class="${bad ? "L" : "W"}">${status}</td></tr>`;
+  }).join("");
+  $("#reportTable").innerHTML = `<thead><tr><th>Player</th><th class="n">Replays read</th><th class="n">Skipped</th><th>Decklists</th><th class="n">Deck backups</th><th>Games</th><th>Status</th></tr></thead><tbody>${rows}</tbody>`;
+  const errs = ps.flatMap(p => p.errors.map(e => `${p.label || p.key || "Me"}: ${e}`));
+  $("#reportErr").innerHTML = errs.length ? "<b>Skipped files</b><br>" + errs.slice(0, 30).map(esc).join("<br>") + (errs.length > 30 ? `<br>…and ${errs.length - 30} more` : "") : "";
+  const problems = ps.filter(p => !p.usable || p.replaysFound - p.replaysRead || p.deckFilesBad || !p.decklist).length;
+  $("#reportSum").innerHTML = `<b>Data check:</b> ${ps.length} ${ps.length === 1 ? "player" : "players"} · ${problems ? `<span class="L">${problems} with problems</span>` : "all files read"}`;
+  $("#report").open = problems > 0;
+}
+
+// ---------------------------------------------------------------- filtering
+function filtered(useDates = true) {
+  const from = $("#dFrom").value ? new Date($("#dFrom").value + "T00:00") : null, to = $("#dTo").value ? new Date($("#dTo").value + "T23:59:59") : null;
+  return GAMES.filter(g => {
+    if (useDates && from && g.ts < from) return false;
+    if (useDates && to && g.ts > to) return false;
+    for (const f of S.filters) {
+      if (!f.v) continue; const v = g._v[f.k], hit = Array.isArray(v) ? v.includes(f.v) : v === f.v;
+      if (f.op === "not" ? hit : !hit) return false;
+    }
+    return true;
+  });
+}
+// counts of each value of dimension k among games gs, most common first
+function valueCounts(k, gs = GAMES) { const c = new Map(); for (const g of gs) { const v = g._v[k]; for (const x of Array.isArray(v) ? v : [v]) c.set(x, (c.get(x) || 0) + 1); } return [...c.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))); }
+
+// ---------------------------------------------------------------- searchable dropdown
+const PICK = {}; let pkOpen = null;
+const pkBtn = (id, cur, ph) => `<button type="button" class="pkb${cur ? "" : " empty"}" data-pk="${id}" aria-haspopup="listbox">${esc(cur || ph)} ▾</button>`;
+function pkRender() {
+  const cfg = PICK[pkOpen], q = $("#pkSearch").value.trim().toLowerCase();
+  const all = cfg.opts(), hits = q ? all.filter(o => o.label.toLowerCase().includes(q)) : all;
+  $("#pkList").innerHTML = hits.slice(0, 400).map((o, i) => `<li role="option" data-v="${esc(o.v)}"${i ? "" : ' class="act"'}><span>${esc(o.label)}</span>${o.n != null ? `<small>${o.n} games</small>` : ""}</li>`).join("")
+    + (hits.length > 400 ? `<li class="status">${hits.length - 400} more — keep typing</li>` : "") + (hits.length ? "" : `<li class="status">No matches</li>`);
+}
+function pkShow(btn) {
+  pkOpen = btn.dataset.pk; const r = btn.getBoundingClientRect(), p = $("#pkPanel");
+  p.hidden = false; p.style.top = (r.bottom + scrollY + 4) + "px"; p.style.left = Math.max(8, Math.min(r.left + scrollX, innerWidth - p.offsetWidth - 8)) + "px";
+  $("#pkSearch").value = ""; pkRender(); $("#pkSearch").focus();
+}
+function pkClose() { $("#pkPanel").hidden = true; pkOpen = null; }
+function pkChoose(v) { const cfg = PICK[pkOpen]; pkClose(); cfg.onPick(v); }
+document.addEventListener("click", e => { const b = e.target.closest("[data-pk]"); if (b) { pkOpen === b.dataset.pk ? pkClose() : pkShow(b); return; } if (!e.target.closest("#pkPanel")) pkClose(); });
+$("#pkSearch").addEventListener("input", pkRender);
+$("#pkSearch").addEventListener("keydown", e => { if (e.key === "Escape") pkClose(); if (e.key === "Enter") { const li = $("#pkList li[data-v]"); if (li) pkChoose(li.dataset.v); } });
+$("#pkList").addEventListener("click", e => { const li = e.target.closest("li[data-v]"); if (li) pkChoose(li.dataset.v); });
+function renderFilters() {
+  $("#filters").innerHTML = S.filters.length ? S.filters.map((f, i) => `<div class="chip" data-i="${i}">
+    <select data-f="k" aria-label="Filter field">${dimOpts(f.k)}</select>
+    <select data-f="op" aria-label="Condition"><option value="is"${f.op !== "not" ? " selected" : ""}>${D[f.k].multi ? "includes" : "is"}</option><option value="not"${f.op === "not" ? " selected" : ""}>${D[f.k].multi ? "doesn't include" : "is not"}</option></select>
+    <span style="width:min(300px,70vw)">${pkBtn("f" + i, f.v, D[f.k].multi ? "Choose a card…" : "Choose…")}</span>
+    <button class="x" data-f="x" aria-label="Remove filter">×</button></div>`).join("") : `<span class="status">No filters: showing every game.</span>`;
+  S.filters.forEach((f, i) => { PICK["f" + i] = { opts: () => valueCounts(f.k).map(([v, n]) => ({ v, label: String(v), n })), onPick: v => { f.v = v; render(); } }; });
+}
+$("#filters").addEventListener("change", e => {
+  const c = e.target.closest(".chip"); if (!c) return; const f = S.filters[+c.dataset.i], k = e.target.dataset.f;
+  if (k === "k") { f.k = e.target.value; f.v = ""; renderFilters(); } else if (k === "op") f.op = e.target.value;
+  render(false);
+});
+$("#filters").addEventListener("click", e => { if (e.target.dataset.f === "x") { S.filters.splice(+e.target.closest(".chip").dataset.i, 1); render(); } });
+$("#addFilter").onclick = () => { S.filters.push({ k: "hand", op: "is", v: "" }); render(); };
+$("#filters").addEventListener("change", e => { if (e.target.dataset.f === "k") render(); });
+$("#clearFilters").onclick = () => { S.filters = []; $("#dFrom").value = ""; $("#dTo").value = ""; render(); };
+["#dFrom", "#dTo"].forEach(s => $(s).addEventListener("change", () => render(false)));
+
+// ---------------------------------------------------------------- stats
+const tally = gs => { let w = 0; for (const g of gs) if (g.result === "W") w++; return { n: gs.length, w }; };
+const wrCell = (w, n, minN) => {
+  if (!n) return `<td class="wr dim">–</td>`;
+  const p = w / n, dim = n < minN ? " dim" : "";
+  return `<td class="wr${dim}"><b>${Math.round(100 * p)}%</b> <small>${w}–${n - w} · N ${n}</small><span class="b"><i style="--p:${100 * p}%;--c:${p >= .5 ? "var(--win)" : "var(--mag)"}"></i></span></td>`;
+};
+// a split is {k, card}: a card split with a chosen card becomes "With X" / "Without X"
+function splitVals(g, sp) {
+  const v = g._v[sp.k];
+  if (D[sp.k].multi && sp.card) return [v.includes(sp.card) ? "With " + sp.card : "Without " + sp.card];
+  return Array.isArray(v) ? v : [v];
+}
+function combos(g, sps) {
+  let acc = [[]];
+  for (const sp of sps) { const vals = splitVals(g, sp), nx = []; for (const a of acc) for (const x of vals) nx.push([...a, x]); acc = nx; }
+  return acc;
+}
+const splitLabel = sp => D[sp.k].l + (D[sp.k].multi && sp.card ? ": " + sp.card : "");
+function renderTiles(gs) {
+  const t = tally(gs), m = new Map(); for (const g of gs) m.set(g.matchId, g.matchResult);
+  const mw = [...m.values()].filter(x => x === "W").length;
+  const sub = f => tally(gs.filter(f));
+  const tiles = [["Game win rate", t], ["Match win rate", { w: mw, n: m.size, unit: "matches" }], ["Going 1st", sub(g => g.first === true)], ["Going 2nd", sub(g => g.first === false)],
+    ["Game 1 (pre-side)", sub(g => g.gameInMatch === 1)], ["Games 2–3 (post-side)", sub(g => g.gameInMatch > 1)]];
+  $("#tiles").innerHTML = tiles.map(([l, x]) => `<div class="tile"><span class="lbl">${l}</span><div class="big">${x.n ? Math.round(100 * x.w / x.n) + "%" : "–"}</div><small>${x.w}–${x.n - x.w} · N ${x.n} ${x.unit || "games"}</small></div>`).join("");
+}
+function renderGroups() {
+  const gs = filtered();
+  $("#groups").innerHTML = `<div class="srow h"><span>Level</span><span>Split by</span><span>Card (card splits only)</span><span></span></div>`
+    + S.groups.map((sp, i) => `<div class="srow" data-i="${i}"><span class="lbl">Split ${i + 1}</span><select aria-label="Split ${i + 1}">${dimOpts(sp.k)}</select>
+      <span>${D[sp.k].multi ? pkBtn("g" + i, sp.card, "All cards (one row each)") : ""}</span><button class="x chipx" aria-label="Remove split ${i + 1}">×</button></div>`).join("")
+    + `<div><button class="btn ghost" id="addGroup">+ Add split</button></div>`;
+  S.groups.forEach((sp, i) => { if (D[sp.k].multi) PICK["g" + i] = { opts: () => [{ v: "", label: "All cards (one row each)" }, ...valueCounts(sp.k, filtered()).map(([v, n]) => ({ v, label: v, n }))], onPick: v => { sp.card = v; renderGroups(); render(false); } }; });
+  $("#addGroup").onclick = () => { const used = S.groups.map(x => x.k); S.groups.push({ k: (DIMS.find(d => !used.includes(d.k)) || DIMS[0]).k, card: "" }); renderGroups(); render(false); };
+}
+$("#groups").addEventListener("change", e => { const r = e.target.closest(".srow"); if (r && e.target.tagName === "SELECT") { S.groups[+r.dataset.i] = { k: e.target.value, card: "" }; renderGroups(); render(false); } });
+$("#groups").addEventListener("click", e => { if (e.target.classList.contains("chipx")) { S.groups.splice(+e.target.closest(".srow").dataset.i, 1); renderGroups(); render(false); } });
+$("#colDim").onchange = e => { S.col = e.target.value; render(false); };
+$("#minN").oninput = e => { S.minN = +e.target.value || 0; render(false); };
+
+function renderTable(gs) {
+  const ks = S.groups, col = S.col && !ks.some(sp => sp.k === S.col) ? S.col : "", colSp = { k: col, card: "" }, minN = S.minN;
+  const rows = new Map();
+  const add = (key, vals, g) => { let r = rows.get(key); if (!r) rows.set(key, r = { vals, n: 0, w: 0, cells: new Map() }); return r; };
+  for (const g of gs) for (const vals of combos(g, ks)) {
+    const r = add(JSON.stringify(vals), vals, g); r.n++; if (g.result === "W") r.w++;
+    if (col) for (const [cv] of combos(g, [colSp])) { const c = r.cells.get(cv) || { n: 0, w: 0 }; c.n++; if (g.result === "W") c.w++; r.cells.set(cv, c); }
+  }
+  // "without" comparison for the last card-type split
+  const mi = ks.map(sp => !!D[sp.k].multi && !sp.card).lastIndexOf(true);
+  if (mi >= 0 && !col) {
+    const other = ks.filter((_, i) => i !== mi), base = new Map();
+    for (const g of gs) for (const vals of combos(g, other)) { const key = JSON.stringify(vals), b = base.get(key) || { n: 0, w: 0 }; b.n++; if (g.result === "W") b.w++; base.set(key, b); }
+    for (const r of rows.values()) { const b = base.get(JSON.stringify(r.vals.filter((_, i) => i !== mi))) || { n: 0, w: 0 }; r.wo = { n: b.n - r.n, w: b.w - r.w }; }
+  }
+  let list = [...rows.values()].filter(r => r.n >= minN);
+  const { by, dir } = S.sort;
+  list.sort((a, b) => by === "n" ? dir * (a.n - b.n) || b.w / b.n - a.w / a.n : by === "wr" ? dir * (a.w / a.n - b.w / b.n) || b.n - a.n : dir * String(a.vals[by]).localeCompare(String(b.vals[by]), undefined, { numeric: true }));
+  const total = tally(gs), cols = col ? [...(() => { const c = new Map(); for (const g of gs) for (const [v] of combos(g, [colSp])) c.set(v, (c.get(v) || 0) + 1); return c; })().entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(e => e[0]) : [];
+  const arrow = k => S.sort.by === k ? (S.sort.dir < 0 ? " ↓" : " ↑") : "";
+  let head = ks.map((sp, i) => `<th data-s="${i}">${esc(splitLabel(sp))}${arrow(i)}</th>`).join("");
+  if (col) head += cols.map(c => `<th class="n">${esc(D[col].l)}: ${esc(c)}</th>`).join("") + `<th class="n" data-s="n">All${arrow("n")}</th>`;
+  else head += `<th class="n" data-s="wr">Win rate · W–L · N${arrow("wr")}</th><th class="n" data-s="n">Games${arrow("n")}</th>` + (mi >= 0 ? `<th class="n">Without that card · W–L · N</th>` : "");
+  const pc = c => !c || !c.n ? `<td class="cell n dim">–</td>` : `<td class="cell n${c.n < minN ? " dim" : ""}"><b>${Math.round(100 * c.w / c.n)}%</b> <small>${c.w}–${c.n - c.w} · N ${c.n}</small></td>`;
+  const body = list.slice(0, 1500).map(r => `<tr>${r.vals.map(v => `<td>${esc(v)}</td>`).join("")}${col ? cols.map(c => pc(r.cells.get(c))).join("") + pc(r) : wrCell(r.w, r.n, 0) + `<td class="n">${r.n}</td>` + (mi >= 0 ? pc(r.wo) : "")}</tr>`).join("");
+  const tot = `<tr class="total"><td colspan="${Math.max(ks.length, 1)}">All filtered games</td>${col ? cols.map(() => "<td></td>").join("") + pc(total) : wrCell(total.w, total.n, 0) + `<td class="n">${total.n}</td>` + (mi >= 0 ? "<td></td>" : "")}</tr>`;
+  $("#statTable").innerHTML = `<thead><tr>${head || "<th>All</th>"}</tr></thead><tbody>${tot}${body}</tbody>`;
+  const hasMulti = ks.some(sp => D[sp.k].multi && !sp.card) || (col && D[col].multi);
+  $("#tableNote").textContent = (list.length > 1500 ? `Showing 1,500 of ${list.length} rows. ` : "") + (hasMulti ? "Card splits overlap: a game counts once under every card it contains, so card rows don't add up to the total. " : "") + (col ? `Columns show the ${cols.length} most common values. ` : "") + `${list.length} rows.`;
+  VIEW = { head: [...ks.map(splitLabel), ...(col ? cols.flatMap(c => [`${c} win rate`, `${c} N`]).concat(["All win rate", "All N"]) : ["Win rate", "Wins", "Losses", "N", ...(mi >= 0 ? ["Without: win rate", "Without: N"] : [])])],
+    rows: list.map(r => [...r.vals, ...(col ? [...cols.map(c => r.cells.get(c)), r].flatMap(c => c && c.n ? [c.w / c.n, c.n] : ["", 0]) : [r.w / r.n, r.w, r.n - r.w, r.n, ...(mi >= 0 ? [r.wo.n ? r.wo.w / r.wo.n : "", r.wo.n] : [])])]) };
+}
+$("#statTable").addEventListener("click", e => { const th = e.target.closest("th[data-s]"); if (!th) return; const s = th.dataset.s, by = s === "n" || s === "wr" ? s : +s; S.sort = { by, dir: S.sort.by === by ? -S.sort.dir : (typeof by === "number" ? 1 : -1) }; render(false); });
+
+// ---------------------------------------------------------------- over time
+function drawTime() {
+  const svg = $("#timeChart"), W = svg.clientWidth, H = svg.clientHeight, gs = filtered(); if (!W) return;
+  const k = Math.max(2, +$("#roll").value || 10), L = 40, R = 12, T = 22, B = 28;
+  if (gs.length < 2) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="currentColor" opacity=".6">Not enough games for a chart</text>`; return; }
+  const x = i => L + (W - L - R) * i / (gs.length - 1), y = p => T + (H - T - B) * (1 - p);
+  let cw = 0; const roll = [], cum = [];
+  gs.forEach((g, i) => { cw += g.result === "W"; cum.push(cw / (i + 1)); const s = gs.slice(Math.max(0, i - k + 1), i + 1); roll.push(s.filter(z => z.result === "W").length / s.length); });
+  const path = a => a.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p).toFixed(1)}`).join("");
+  const marks = gs.map((g, i) => i && g.myVersion !== gs[i - 1].myVersion ? `<line x1="${x(i)}" x2="${x(i)}" y1="${T - 8}" y2="${H - B}" stroke="currentColor" opacity=".18"><title>${esc(g.myVersion)}</title></line><line x1="${x(i)}" x2="${x(i)}" y1="${T - 10}" y2="${T - 2}" stroke="var(--teal)" stroke-width="2"><title>${esc(g.myVersion)} from ${g.ts.toLocaleDateString()}</title></line>` : "").join("");
+  const grid = [0, .25, .5, .75, 1].map(p => `<line x1="${L}" x2="${W - R}" y1="${y(p)}" y2="${y(p)}" stroke="currentColor" opacity="${p === .5 ? .35 : .1}"/><text x="${L - 6}" y="${y(p) + 4}" text-anchor="end" font-size="12" fill="currentColor" opacity=".6">${p * 100}%</text>`).join("");
+  const ticks = W < 520 ? [0, gs.length - 1] : [0, Math.floor((gs.length - 1) / 2), gs.length - 1];
+  const xl = ticks.map(i => `<text x="${x(i)}" y="${H - 8}" text-anchor="${i ? i === gs.length - 1 ? "end" : "middle" : "start"}" font-size="12" fill="currentColor" opacity=".6">${gs[i].ts.toLocaleDateString()}</text>`).join("");
+  svg.innerHTML = grid + marks + xl + `<path d="${path(cum)}" fill="none" stroke="var(--mute)" stroke-width="1.5" stroke-dasharray="4 4"/><path d="${path(roll)}" fill="none" stroke="var(--tealT)" stroke-width="2.5"/>`;
+}
+const ro = new ResizeObserver(drawTime); ro.observe($("#timeChart"));
+$("#roll").oninput = drawTime;
+
+// ---------------------------------------------------------------- game list
+function renderGames(gs) {
+  const head = `<thead><tr><th>Date</th><th>My deck version</th><th>Opponent deck</th><th>Game</th><th>Turn order</th><th>Result</th><th>How it ended</th><th class="n">Turns</th></tr></thead>`;
+  const rows = gs.slice().reverse().slice(0, 300).map(g => {
+    const r = `<tr data-id="${g.id}" style="cursor:pointer"><td class="n" style="text-align:left">${g.ts.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</td><td>${esc(g.myVersion)}</td><td>${esc(g.oppDeck)}</td><td>G${g.gameInMatch} <small class="status">(${g.matchScore})</small></td><td>${g.first ? "1st" : "2nd"}</td><td class="${g.result}">${g.result || "?"}</td><td>${esc(g.endReason)}</td><td class="n">${g.turns}</td></tr>`;
+    return S.open !== g.id ? r : r + `<tr class="detail"><td colspan="8"><b>My opening hand:</b> ${esc(g.opening.map(nm).join("; ") || "—")}<br><b>Opponent's known opening cards:</b> ${esc(names(g.oppOpen).join("; ") || "—")}<br><b>Opponent showed:</b> ${esc(names(g.oppCards).join("; ") || "—")}<br><b>Deck label evidence:</b> ${esc(g.oppEvidence || "—")}<br><span class="status">${esc(g.file)} · deck match ${g.deckMatch ?? "–"} · this game alone reads as ${esc(g.oppDeckGame)}</span></td></tr>`;
+  }).join("");
+  $("#gameTable").innerHTML = head + `<tbody>${rows || `<tr><td colspan="8" class="status">No games match these filters.</td></tr>`}</tbody>`;
+}
+$("#gameTable").addEventListener("click", e => { const tr = e.target.closest("tr[data-id]"); if (tr) { S.open = S.open === tr.dataset.id ? null : tr.dataset.id; renderGames(filtered()); } });
+
+// ---------------------------------------------------------------- meta
+function metaWindow() {
+  const v = $("#win").value; if (v === "all") return [null, null];
+  if (v === "custom") return [$("#dFrom").value ? new Date($("#dFrom").value + "T00:00") : null, $("#dTo").value ? new Date($("#dTo").value + "T23:59:59") : null];
+  const a = $("#anchor").value === "today" || !GAMES.length ? new Date() : new Date(GAMES[GAMES.length - 1].ts);
+  if (v === "thisMonth") return [new Date(a.getFullYear(), a.getMonth(), 1), a];
+  if (v === "lastMonth") return [new Date(a.getFullYear(), a.getMonth() - 1, 1), new Date(a.getFullYear(), a.getMonth(), 0, 23, 59, 59)];
+  const f = new Date(a); f.setDate(f.getDate() - +v); return [f, a];
+}
+function pieBlock(title, matches, keyOf, games) {
+  const hide = $("#hideUnknown").checked, thr = (+$("#otherPct").value || 0) / 100;
+  const cnt = new Map(); for (const m of matches) { const k = keyOf(m); if (hide && k.startsWith("unknown")) continue; cnt.set(k, (cnt.get(k) || 0) + 1); }
+  const tot = [...cnt.values()].reduce((a, b) => a + b, 0);
+  let slices = [...cnt.entries()].sort((a, b) => b[1] - a[1]), other = slices.filter(s => s[1] / tot < thr);
+  if (other.length > 1) slices = slices.filter(s => s[1] / tot >= thr).concat([["Other (" + other.length + " decks)", other.reduce((a, s) => a + s[1], 0), other.map(s => s[0])]]);
+  let a0 = -Math.PI / 2; const R = 90, C = 100;
+  const arcs = slices.map((s, i) => {
+    const frac = s[1] / tot, a1 = a0 + frac * 2 * Math.PI, col = s[0].startsWith("Other") ? "#9aa6ad" : PAL[i % PAL.length];
+    const d = frac >= .9999 ? `M${C},${C - R}A${R},${R} 0 1 1 ${C - .01},${C - R}Z` : `M${C},${C}L${C + R * Math.cos(a0)},${C + R * Math.sin(a0)}A${R},${R} 0 ${frac > .5 ? 1 : 0} 1 ${C + R * Math.cos(a1)},${C + R * Math.sin(a1)}Z`;
+    a0 = a1; s.col = col; return `<path d="${d}" fill="${col}" stroke="var(--bg)" stroke-width="1.5"><title>${esc(s[0])}: ${s[1]} (${Math.round(100 * frac)}%)</title></path>`;
+  }).join("");
+  const rows = slices.map(s => { const keys = s[2] || [s[0]], gg = games.filter(g => keys.includes(keyOf(g))), t = tally(gg);
+    return `<tr><td><span class="sw" style="background:${s.col}"></span>${esc(s[0])}</td><td class="n">${Math.round(100 * s[1] / tot)}%</td><td class="n">${s[1]}</td>${wrCell(t.w, t.n, 0)}</tr>`; }).join("");
+  return `<h3>${title}</h3><p class="note">${tot} matches</p><div class="pie"><svg viewBox="0 0 200 200" role="img" aria-label="${esc(title)} pie chart">${arcs || `<circle cx="100" cy="100" r="90" fill="var(--soft)"/>`}</svg>
+    <div class="scroll" style="max-height:none"><table><thead><tr><th>Deck</th><th class="n">Share</th><th class="n">Matches</th><th class="n">My win rate vs · W–L · N</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+function renderMeta() {
+  const [f, t] = metaWindow(), gs = filtered($("#win").value !== "custom").filter(g => (!f || g.ts >= f) && (!t || g.ts <= t));
+  const firstOf = new Map(); for (const g of gs) if (!firstOf.has(g.matchId)) firstOf.set(g.matchId, g);
+  const matches = [...firstOf.values()];
+  $("#metaNote").textContent = (f || t ? `${f ? f.toLocaleDateString() : "start"} – ${t ? t.toLocaleDateString() : "now"}. ` : "All time. ") + (matches.length ? "" : `No matches in this window; your latest game is ${GAMES.length ? GAMES[GAMES.length - 1].ts.toLocaleDateString() : "—"}. `) + "Each match counts once in the pies; win rates count games.";
+  $("#pieOpp").innerHTML = pieBlock("What my opponents play", matches, g => g.oppDeck, gs);
+  $("#pieMine").innerHTML = pieBlock("What I play", matches, g => g.myDeck, gs);
+}
+["#win", "#anchor", "#otherPct", "#hideUnknown"].forEach(s => $(s).addEventListener("input", renderMeta));
+
+// ---------------------------------------------------------------- decks
+const multiP = () => DATA.players.length > 1;
+function fillDecks() {
+  const decks = [...new Set(DATA.versions.map(v => v.playerKey + "\u0001" + v.deck))];
+  if (!decks.length) { $("#deckSel").innerHTML = ""; $("#verSel").innerHTML = ""; $("#deckNote").textContent = "No decklists loaded yet. Drag the Files folder (it holds Player.data and Backup) onto this page."; $("#deckTable").innerHTML = ""; return; }
+  $("#deckSel").innerHTML = decks.map(d => { const [pk, dn] = d.split("\u0001"), v = DATA.versions.find(x => x.playerKey === pk); return `<option value="${esc(d)}">${esc(multiP() ? v.player + " · " + dn : dn)}</option>`; }).join(""); fillVersions();
+}
+function fillVersions() {
+  const [pk, dn] = $("#deckSel").value.split("\u0001"), vs = DATA.versions.filter(v => v.playerKey === pk && v.deck === dn);
+  $("#verSel").innerHTML = vs.map(v => `<option value="${v.version}">v${v.version} · saved by ${v.savedOn.toLocaleDateString()}</option>`).reverse().join(""); renderDeck();
+}
+function renderDeck() {
+  const [pk, d] = $("#deckSel").value.split("\u0001"), v = +$("#verSel").value, only = $("#onlyChanges").checked;
+  const rows = DATA.deckRows.filter(r => r.playerKey === pk && r.deck === d && r.version === v && (!only || r.status));
+  const gs = GAMES.filter(g => g.playerKey === pk && g.myVersion === `${d} v${v}`), t = tally(gs);
+  $("#deckNote").innerHTML = `${v > 1 ? "Green: added or more copies than the previous version. Red: removed or fewer copies. " : "First saved version. "}Games with this version: ${t.n ? `${Math.round(100 * t.w / t.n)}% · ${t.w}–${t.n - t.w} · N ${t.n}` : "none"}.`;
+  $("#deckTable").innerHTML = `<thead><tr><th>Section</th><th>Card</th><th class="n">Copies</th><th class="n">Change</th></tr></thead><tbody>${rows.map(r => `<tr class="${r.status}"><td>${r.section}</td><td>${esc(nm(r.card))}</td><td class="n">${r.count}</td><td class="n">${r.change}</td></tr>`).join("") || `<tr><td colspan="4" class="status">No changes in this version.</td></tr>`}</tbody>`;
+}
+$("#deckSel").onchange = fillVersions; $("#verSel").onchange = renderDeck; $("#onlyChanges").onchange = renderDeck;
+
+// ---------------------------------------------------------------- tabs + render
+function showTab() {
+  document.querySelectorAll("#tabs button").forEach(x => x.setAttribute("aria-selected", x.dataset.tab === TAB));
+  const c = TAB === "contribute";
+  $("#tab-contribute").hidden = !c; $("#loader").hidden = c || !!DATA; $("#app").hidden = c || !DATA;
+  ["stats", "meta", "decks"].forEach(t => $("#tab-" + t).hidden = t !== TAB);
+  if (DATA) { $("#deckWarn").hidden = DATA.versions.length > 0; render(); }
+}
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (!b) return; TAB = b.dataset.tab; try { history.replaceState(null, "", "#" + TAB); } catch (err) {} showTab(); });
+addEventListener("hashchange", () => { const h = location.hash.slice(1); if (["stats", "meta", "decks", "contribute"].includes(h)) { TAB = h; showTab(); } });
+function render(full = true) {
+  if (!DATA) return; if (full) { renderFilters(); renderGroups(); }
+  const gs = filtered();
+  if (TAB === "stats") { renderTiles(gs); renderTable(gs); renderGames(gs); drawTime(); }
+  if (TAB === "meta") renderMeta();
+}
+
+// ---------------------------------------------------------------- contribute
+let PACK = null;
+async function contribute(list) {
+  const st = $("#cStatus"); $("#cReady").hidden = true; $("#cResult").textContent = "";
+  const files = list.filter(x => !/\.zip$/i.test(x.path) && !/contributor\.json$/i.test(x.path));
+  if (!files.some(x => /\.bytes$/i.test(x.path))) { st.textContent = "No replays found there. Choose the Files folder (it contains Replays and Player.data)."; return; }
+  st.textContent = `Packing ${files.length} files…`;
+  try {
+    const items = [], ids = new Map(); let first = null, last = null, nRep = 0;
+    for (const { file, path } of files) {
+      const { key } = splitPath(path); let bytes = new Uint8Array(await file.arrayBuffer());
+      if (/\.bytes$/i.test(key)) {
+        try { const a = await OmegaParser.anonymizeReplay(bytes); bytes = a.bytes; ids.set(a.myId, (ids.get(a.myId) || 0) + 1); nRep++; } catch (e) { continue; }
+        const m = /^(\d\d)_(\d\d)_(\d\d)/.exec(file.name);
+        if (m) { const d = new Date(2000 + +m[1], +m[2] - 1, +m[3]); if (!first || d < first) first = d; if (!last || d > last) last = d; }
+        if (nRep % 25 === 0) st.textContent = `Packing… ${nRep} replays`;
+      }
+      items.push({ key, bytes, date: new Date(file.lastModified) });
+    }
+    if (!nRep) { st.textContent = "None of those replays could be read."; return; }
+    const playerId = [...ids.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const hasDecks = items.some(z => z.key === "Player.data"), nBackups = items.filter(z => /^Backup\//i.test(z.key)).length;
+    PACK = { playerId, items, nRep, list };
+    st.textContent = "";
+    $("#cSummary").innerHTML = `<b>${nRep} replays</b>${first ? ` from ${first.toLocaleDateString()} to ${last.toLocaleDateString()}` : ""} · ${hasDecks ? "decklists included" : "<b>no decklists found</b> (Player.data sits in the Files folder next to Replays)"}${nBackups ? ` · ${nBackups} deck backups` : ""} · your player ID ${esc(playerId)}`;
+    $("#cReady").hidden = false; $("#cSend").hidden = !CONFIG.uploadUrl;
+    if (!CONFIG.uploadUrl) $("#cResult").textContent = "Sending isn't set up on this copy of the page; download the data pack and send it to the project owner.";
+  } catch (e) { st.textContent = "Couldn't pack these files: " + e.message; }
+}
+async function packZip() {
+  const id = PACK.playerId, name = $("#cName").value.trim();
+  const entries = PACK.items.map(it => ({ name: `${id}/${it.key}`, bytes: it.bytes, date: it.date }));
+  entries.push({ name: `${id}/contributor.json`, bytes: new TextEncoder().encode(JSON.stringify({ playerId: id, name, created: new Date().toISOString(), replays: PACK.nRep, tool: "Omega Duel Log" }, null, 1)), date: new Date() });
+  return new Blob([OmegaParser.zipWrite(entries)], { type: "application/zip" });
+}
+$("#cPick").addEventListener("change", e => contribute(fromFolder(e.target.files)));
+$("#cPickFiles").addEventListener("change", e => contribute(fromFiles(e.target.files)));
+$("#cDrop").addEventListener("dragover", e => { e.preventDefault(); $("#cDrop").classList.add("over"); });
+$("#cDrop").addEventListener("dragleave", () => $("#cDrop").classList.remove("over"));
+$("#cSend").onclick = async () => {
+  const r = $("#cResult");
+  if (!$("#cConsent").checked) { r.textContent = "Please tick the box to agree before sending."; return; }
+  r.textContent = "Sending…"; $("#cSend").disabled = true;
+  try {
+    const blob = await packZip();
+    const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.onerror = rej; fr.readAsDataURL(blob); });
+    const resp = await fetch(CONFIG.uploadUrl, { method: "POST", body: JSON.stringify({ playerId: PACK.playerId, name: $("#cName").value.trim(), zip: b64 }) });
+    const j = await resp.json();
+    if (!j.ok) throw new Error(j.error || "the upload was refused");
+    r.textContent = `Sent. Thank you! ${j.replays ?? PACK.nRep} replays received${j.pending ? "; the project owner will review them before they're used" : ""}.`;
+  } catch (e) { r.textContent = `Sending didn't work (${e.message}). Use “Download data pack instead” and send the file another way.`; }
+  $("#cSend").disabled = false;
+};
+$("#cDownload").onclick = async () => {
+  const r = $("#cResult"); r.textContent = "Building the pack…";
+  try { await saveFile(`omega_${PACK.playerId}.zip`, await packZip()); r.textContent = "Pack downloaded. Send that file to the project owner."; }
+  catch (e) { r.textContent = e && e.code === "declined" ? "Download cancelled." : "Download failed: " + (e.message || e.code || e); }
+};
+$("#cStats").onclick = () => { TAB = "stats"; try { history.replaceState(null, "", "#stats"); } catch (err) {} ingest(PACK.list); showTab(); };
+
+// ---------------------------------------------------------------- Excel export
+const loadExcel = () => loadLib("https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js", () => !!window.ExcelJS);
+function sheet(wb, name, head, rows, pctCols = []) {
+  const ws = wb.addWorksheet(name); ws.addRow(head).font = { bold: true }; for (const r of rows) ws.addRow(r);
+  ws.views = [{ state: "frozen", ySplit: 1 }]; ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: head.length } };
+  head.forEach((h, i) => { ws.getColumn(i + 1).width = Math.min(50, Math.max(10, String(h).length + 2)); if (pctCols.includes(i)) ws.getColumn(i + 1).numFmt = "0%"; });
+  return ws;
+}
+document.querySelectorAll("[data-export]").forEach(b => b.addEventListener("click", async () => {
+  const st = $("#exportStatus");
+  st.textContent = "Building the workbook…";
+  try {
+    await loadExcel(); const wb = new ExcelJS.Workbook();
+    if (b.dataset.export === "view") {
+      sheet(wb, "Win rates", VIEW.head, VIEW.rows, VIEW.head.map((h, i) => /win rate/i.test(h) ? i : -1).filter(i => i >= 0));
+      const fl = S.filters.filter(f => f.v).map(f => [D[f.k].l, f.op === "not" ? "excludes" : "is / includes", f.v]);
+      if ($("#dFrom").value || $("#dTo").value) fl.push(["Dates", "between", `${$("#dFrom").value || "start"} – ${$("#dTo").value || "end"}`]);
+      sheet(wb, "Filters", ["Field", "Condition", "Value"], fl.length ? fl : [["(none)", "", ""]]);
+    } else {
+      const gs = GAMES;
+      sheet(wb, "Games", ["player", "game_id", "match_id", "game_in_match", "timestamp", "my_deck", "my_deck_version", "deck_match", "opp_deck", "opp_deck_this_game", "opponent_id", "went_first", "result", "end_reason", "turns", "match_score", "match_result", "start_hand_size", "opening_hand", "opp_known_opening", "opp_cards_seen", "opp_deck_evidence", "file"],
+        gs.map(g => [g.player, g.id, g.matchId, g.gameInMatch, g.ts, g.myDeck, g.myVersion, g.deckMatch, g.oppDeck, g.oppDeckGame, g.opponentId, g.first ? "first" : "second", g.result, g.endReason, g.turns, g.matchScore, g.matchResult, g.startHand, names(g.opening).join("; "), names(g.oppOpen).join("; "), names(g.oppCards).join("; "), g.oppEvidence, g.file])).getColumn(5).numFmt = "yyyy-mm-dd hh:mm";
+      const cr = []; for (const g of gs) { for (const c of g.opening) cr.push([g.id, "me", c, nm(c), "opening_hand", "deck", 0]); for (const e of g.events) cr.push([g.id, e.player, e.card, nm(e.card), e.event, e.from, e.turn]); }
+      sheet(wb, "Cards", ["game_id", "player", "card_id", "card_name", "event", "from_location", "turn"], cr);
+      const dws = sheet(wb, "Decks", ["player", "deck", "version", "version_label", "saved_on", "section", "card_name", "card_id", "count", "change"], DATA.deckRows.map(r => [r.player, r.deck, r.version, r.label, r.savedOn, r.section, nm(r.card), r.card, r.count, r.change]));
+      dws.getColumn(5).numFmt = "yyyy-mm-dd";
+      DATA.deckRows.forEach((r, i) => { if (r.status) dws.getRow(i + 2).font = { color: { argb: r.status === "added" ? "FF00A040" : "FFD00000" } }; });
+    }
+    const buf = await wb.xlsx.writeBuffer();
+    await saveFile(b.dataset.export === "view" ? "omega_winrates.xlsx" : "omega_games.xlsx", new Blob([buf]));
+    st.textContent = "Saved.";
+  } catch (e) { st.textContent = e && e.code === "declined" ? "Download cancelled." : "Export failed: " + (e.message || e.code || e); }
+}));
+showTab();
+}
+</script>
+</body>
+</html>
